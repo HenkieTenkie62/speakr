@@ -378,13 +378,17 @@ def format_transcription_for_llm(transcription_text):
     try:
         transcription_data = json.loads(transcription_text)
         if isinstance(transcription_data, list):
-            # It's our simplified JSON format
-            formatted_lines = []
-            for segment in transcription_data:
-                speaker = segment.get('speaker', 'Unknown Speaker')
-                sentence = segment.get('sentence', '')
-                formatted_lines.append(f"[{speaker}]: {sentence}")
-            return "\n".join(formatted_lines)
+            was_diarized = any(segment.get('speaker') for segment in transcription_data)
+            if was_diarized:
+                return "\n".join(
+                    f"[{segment.get('speaker', '')}]: {segment.get('sentence', '')}"
+                    for segment in transcription_data
+                )
+            else:
+                return "\n".join(
+                    segment.get('sentence', '')
+                    for segment in transcription_data
+                )
     except (json.JSONDecodeError, TypeError):
         # Not a JSON, or not the format we expect, so return as is.
         pass
@@ -971,9 +975,9 @@ JSON Response:"""
         transcript_limit = SystemSetting.get_setting('transcript_length_limit', 30000)
         if transcript_limit == -1:
             # No limit
-            transcript_text = recording.transcription
+            transcript_text = format_transcription_for_llm(recording.transcription)
         else:
-            transcript_text = recording.transcription[:transcript_limit]
+            transcript_text = format_transcription_for_llm(recording.transcription)[:transcript_limit]
         
         if user_summary_prompt:
             prompt_text = f"""Analyze the following audio transcription and generate a concise title and a summary according to the following instructions.
@@ -1703,9 +1707,9 @@ def identify_speakers_from_text(transcription):
     transcript_limit = SystemSetting.get_setting('transcript_length_limit', 30000)
     if transcript_limit == -1:
         # No limit
-        transcript_text = formatted_transcription
+        transcript_text = format_transcription_for_llm(recording.transcription)
     else:
-        transcript_text = formatted_transcription[:transcript_limit]
+        transcript_text = format_transcription_for_llm(recording.transcription)[:transcript_limit]
 
     prompt = f"""Analyze the following transcription and identify the names of the speakers. The speakers are labeled as {', '.join(speaker_labels)}. Based on the context of the conversation, determine the most likely name for each speaker label.
 
@@ -1766,9 +1770,9 @@ def identify_unidentified_speakers_from_text(transcription, unidentified_speaker
     transcript_limit = SystemSetting.get_setting('transcript_length_limit', 30000)
     if transcript_limit == -1:
         # No limit
-        transcript_text = formatted_transcription
+        transcript_text = format_transcription_for_llm(recording.transcription)
     else:
-        transcript_text = formatted_transcription[:transcript_limit]
+        transcript_text = format_transcription_for_llm(recording.transcription)[:transcript_limit]
 
     prompt = f"""Analyze the following conversation transcript and identify the names of the UNIDENTIFIED speakers based on the context and content of their dialogue. 
 
@@ -2173,9 +2177,9 @@ JSON Response:"""
                     transcript_limit = SystemSetting.get_setting('transcript_length_limit', 30000)
                     if transcript_limit == -1:
                         # No limit
-                        transcript_text = recording.transcription
+                        transcript_text = format_transcription_for_llm(recording.transcription)
                     else:
-                        transcript_text = recording.transcription[:transcript_limit]
+                        transcript_text = format_transcription_for_llm(recording.transcription)[:transcript_limit]
                     
                     if user_summary_prompt:
                         prompt_text = f"""Analyze the following audio transcription and generate a concise title and a summary according to the following instructions.
